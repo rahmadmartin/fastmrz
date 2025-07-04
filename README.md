@@ -176,3 +176,184 @@ We’d love to know who’s using **fastmrz**! If your company or project uses t
 Thank you for supporting **fastmrz**! 🤟
 
 
+# 😂 FastMRZ API
+
+A lightweight REST API built with FastAPI for extracting Machine Readable Zone (MRZ) data from passport or ID images using YOLOv5 object detection and Tesseract OCR.
+
+Supports base64-encoded image input and MRZ validation.
+
+---
+
+## 🚀 Features
+
+* Extracts MRZ data from passport/ID images
+* Accepts base64 image strings (no file uploads required)
+* Validates MRZ format and checksums
+* JSON-based REST API with Swagger docs
+
+---
+
+## 📦 Requirements
+
+* Python 3.7+
+* Tesseract OCR (must be installed and available on your system)
+* `mrz.traineddata` (optional but improves accuracy)
+
+---
+
+## 🔧 Installation
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/your-username/your-repo-name.git
+cd your-repo-name
+```
+
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Install Tesseract OCR
+
+#### Ubuntu/Debian
+
+```bash
+sudo apt update
+sudo apt install tesseract-ocr
+```
+
+#### macOS (Homebrew)
+
+```bash
+brew install tesseract
+```
+
+#### Windows
+
+* Download installer: [https://github.com/tesseract-ocr/tesseract/wiki](https://github.com/tesseract-ocr/tesseract/wiki)
+* Add the install path to your `PATH` environment variable
+
+### 4. (Optional) Install `mrz.traineddata`
+
+To improve MRZ recognition, install `mrz.traineddata`:
+
+```bash
+wget https://github.com/tesseract-ocr/tessdata_fast/raw/main/mrz.traineddata -O mrz.traineddata
+```
+
+Place it in your Tesseract `tessdata` folder. For example:
+
+* Ubuntu/macOS: `/usr/share/tesseract-ocr/4.00/tessdata/`
+* Homebrew: `/opt/homebrew/share/tessdata/`
+* Windows: `C:\Program Files\Tesseract-OCR\tessdata\`
+
+Set the `TESSDATA_PREFIX` environment variable if needed:
+
+```bash
+export TESSDATA_PREFIX=/opt/homebrew/share/
+```
+
+---
+
+## 🚀 Run the API Server
+
+```bash
+uvicorn mrz_api:app --reload
+```
+
+The API will be available at:
+
+```
+http://localhost:8000
+```
+
+API docs (auto-generated):
+
+```
+http://localhost:8000/docs
+```
+
+---
+
+## 🧺asdf API Usage
+
+### 🔹 POST `/extract`
+
+Extract MRZ from a base64-encoded image.
+
+#### Request Body:
+
+```json
+{
+  "base64_image": "<your_base64_string_here>",
+  "ignore_parse": false
+}
+```
+
+#### Response:
+
+```json
+{
+  "document_type": "P",
+  "country": "GBR",
+  "last_name": "PUDARSAN",
+  ...
+}
+```
+
+---
+
+### 🔹 POST `/validate`
+
+Validate an MRZ string for format and checksum correctness.
+
+#### Request Body:
+
+```json
+{
+  "mrz_text": "P<GBRPUDARSAN<<HENERT<<<<<<<<<<<<<<<<<\n7077979792GBR9505209M1704224<<<<<<<<<<<<<<00"
+}
+```
+
+#### Response:
+
+```json
+{
+  "valid": true
+}
+```
+
+---
+
+## 🛠 Project Structure
+
+```
+.
+├── mrz_api.py            # FastAPI application
+├── requirements.txt      # Dependencies
+├── README.md             # You're here
+└── ...
+```
+
+---
+
+## 📌 Notes
+
+* Works best with clear, high-resolution images of passports/IDs.
+* Supports raw base64 image strings (`image/jpeg;base64,...` prefix is optional).
+* For file upload support, modify to use `UploadFile` (FastAPI supports both).
+
+---
+
+## 📜 License
+
+MIT — use freely for personal or commercial purposes.
+
+---
+
+## 🤝 Contributing
+
+PRs welcome. For bugs or feature requests, open an issue.
