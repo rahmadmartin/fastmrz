@@ -23,7 +23,7 @@ def find_tesseract_data_path():
     """
     possible_paths = [
         # Common Ubuntu/Debian paths
-        "/usr/share/tesseract-ocr/5/tessdata/",
+        "/usr/share/tesseract-ocr/5.00/tessdata/",
         "/usr/share/tesseract-ocr/4.00/tessdata/", 
         "/usr/share/tessdata/",
         "/usr/local/share/tessdata/",
@@ -120,21 +120,74 @@ def download_mrz_traineddata(tessdata_path):
         logger.error(f"✗ Error downloading MRZ trained data: {e}")
         return False
 
+def find_tesseract_executable():
+    """
+    Find tesseract executable in common locations
+    """
+    possible_paths = [
+        '/usr/bin/tesseract',
+        '/usr/local/bin/tesseract',
+        '/opt/homebrew/bin/tesseract',
+        '/snap/bin/tesseract'
+    ]
+    
+    for path in possible_paths:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            logger.info(f"Found tesseract at: {path}")
+            return path
+    
+    # Try to find using which command if available
+    try:
+        result = subprocess.run(['which', 'tesseract'], 
+                              capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            path = result.stdout.strip()
+            logger.info(f"Found tesseract using 'which': {path}")
+            return path
+    except:
+        pass
+    
+    return None
+
 def setup_tesseract():
     """
     Setup Tesseract with proper tessdata path
     """
-    # Check if tesseract is installed
+    # Find tesseract executable
+    tesseract_path = find_tesseract_executable()
+    
+    if not tesseract_path:
+        logger.error("Tesseract executable not found in common locations")
+        raise RuntimeError("Tesseract executable not found")
+    
+    # Check if tesseract works
     try:
-        result = subprocess.run(['tesseract', '--version'], 
+        result = subprocess.run([tesseract_path, '--version'], 
                               capture_output=True, text=True, timeout=10)
         logger.info(f"Tesseract version: {result.stdout.split()[1] if result.stdout else 'Unknown'}")
+        
+        # Store the tesseract path for later use
+        os.environ['TESSERACT_CMD'] = tesseract_path
+        
     except Exception as e:
-        logger.error(f"Tesseract not found or not working: {e}")
-        raise RuntimeError("Tesseract is not installed or not in PATH")
+        logger.error(f"Tesseract not working: {e}")
+        raise RuntimeError(f"Tesseract found at {tesseract_path} but not working: {e}")
     
-    # Find tessdata path
+    # Find tessdata path (we know from logs it's at /usr/share/tesseract-ocr/5/tessdata/)
     tessdata_path = find_tesseract_data_path()
+    
+    if not tessdata_path:
+        # From the logs, we know MRZ data exists at these locations
+        known_good_paths = [
+            "/usr/share/tesseract-ocr/5/tessdata/",
+            "/usr/share/tesseract-ocr/4.00/tessdata/"
+        ]
+        
+        for path in known_good_paths:
+            if os.path.isdir(path) and os.path.isfile(os.path.join(path, 'mrz.traineddata')):
+                tessdata_path = path
+                logger.info(f"Using known good tessdata path: {tessdata_path}")
+                break
     
     if not tessdata_path:
         logger.warning("Could not find tesseract tessdata directory. Trying common locations...")
@@ -174,7 +227,8 @@ def setup_tesseract():
     
     # Verify tesseract can see the MRZ language
     try:
-        result = subprocess.run(['tesseract', '--list-langs'], 
+        tesseract_cmd = os.environ.get('TESSERACT_CMD', 'tesseract')
+        result = subprocess.run([tesseract_cmd, '--list-langs'], 
                               capture_output=True, text=True, timeout=10)
         available_langs = result.stdout.strip().split('\n')[1:] if result.returncode == 0 else []
         logger.info(f"Available tesseract languages: {available_langs}")
@@ -228,16 +282,19 @@ def initialize_fastmrz():
     try:
         logger.info("Starting FastMRZ initialization...")
         
-        # Check if tesseract is available
-        try:
-            result = subprocess.run(['tesseract', '--version'], 
-                                  capture_output=True, text=True, timeout=10)
-            logger.info(f"Tesseract found: {result.stdout.split()[1] if result.stdout else 'Unknown version'}")
-        except FileNotFoundError:
-            logger.error("Tesseract not found in PATH")
+        # Find and check tesseract
+        tesseract_path = find_tesseract_executable()
+        if not tesseract_path:
+            logger.error("Tesseract executable not found")
             return False
+            
+        try:
+            result = subprocess.run([tesseract_path, '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            logger.info(f"Tesseract found at {tesseract_path}: {result.stdout.split()[1] if result.stdout else 'Unknown version'}")
+            os.environ['TESSERACT_CMD'] = tesseract_path
         except Exception as e:
-            logger.error(f"Error checking tesseract: {e}")
+            logger.error(f"Error checking tesseract at {tesseract_path}: {e}")
             return False
         
         # Setup tesseract
@@ -399,18 +456,20 @@ async def startup_logs():
     logs = []
     
     # Check tesseract installation
-    try:
-        result = subprocess.run(['tesseract', '--version'], 
-                              capture_output=True, text=True, timeout=10)
-        logs.append(f"✓ Tesseract found: {result.stdout.split()[1] if result.stdout else 'Unknown'}")
-    except FileNotFoundError:
-        logs.append("✗ Tesseract not found in PATH")
-    except Exception as e:
-        logs.append(f"✗ Error checking tesseract: {e}")
+    tesseract_path = find_tesseract_executable()
+    if tesseract_path:
+        try:
+            result = subprocess.run([tesseract_path, '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            logs.append(f"✓ Tesseract found at {tesseract_path}: {result.stdout.split()[1] if result.stdout else 'Unknown'}")
+        except Exception as e:
+            logs.append(f"✗ Error with tesseract at {tesseract_path}: {e}")
+    else:
+        logs.append("✗ Tesseract executable not found in common locations")
     
     # Check tessdata paths
     possible_paths = [
-        "/usr/share/tesseract-ocr/5/tessdata/",
+        "/usr/share/tesseract-ocr/5.00/tessdata/",
         "/usr/share/tesseract-ocr/4.00/tessdata/", 
         "/usr/share/tessdata/",
         "/usr/local/share/tessdata/",
@@ -427,17 +486,21 @@ async def startup_logs():
     logs.append(f"TESSDATA_PREFIX env var: {tessdata_prefix}")
     
     # Check available languages
-    try:
-        result = subprocess.run(['tesseract', '--list-langs'], 
-                              capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            langs = result.stdout.strip().split('\n')[1:]
-            logs.append(f"Available languages: {langs}")
-            logs.append(f"MRZ available: {'mrz' in langs}")
-        else:
-            logs.append(f"Error listing languages: {result.stderr}")
-    except Exception as e:
-        logs.append(f"Error checking languages: {e}")
+    tesseract_cmd = find_tesseract_executable()
+    if tesseract_cmd:
+        try:
+            result = subprocess.run([tesseract_cmd, '--list-langs'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                langs = result.stdout.strip().split('\n')[1:]
+                logs.append(f"Available languages: {langs}")
+                logs.append(f"MRZ available: {'mrz' in langs}")
+            else:
+                logs.append(f"Error listing languages: {result.stderr}")
+        except Exception as e:
+            logs.append(f"Error checking languages: {e}")
+    else:
+        logs.append("Cannot check languages - tesseract not found")
     
     # FastMRZ status
     logs.append(f"FastMRZ initialized: {fast_mrz is not None}")

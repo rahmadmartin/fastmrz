@@ -216,6 +216,7 @@ User=$USER
 WorkingDirectory=/opt/projects
 Environment="PATH=/opt/projects/venv/bin"
 Environment="PYTHONPATH=/opt/projects"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata/"
 ExecStart=/opt/projects/venv/bin/uvicorn fastmrz.mrz_api:app --host 0.0.0.0 --port 8000
 Restart=always
