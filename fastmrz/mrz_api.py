@@ -4,7 +4,7 @@ from fastmrz import FastMRZ
 from fastapi.responses import JSONResponse
 
 app = FastAPI()
-fast_mrz = FastMRZ()  # Use both mrz and eng traineddata
+fast_mrz = FastMRZ(lang='mrz')  # Use both mrz and eng traineddata
 class ImageBase64Request(BaseModel):
     base64_image: str
     ignore_parse: bool = False
