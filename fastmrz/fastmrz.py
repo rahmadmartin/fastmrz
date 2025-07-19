@@ -8,8 +8,9 @@ from io import BytesIO
 from PIL import Image
 
 class FastMRZ:
-    def __init__(self, tesseract_path=""):
+    def __init__(self, tesseract_path="", lang=""):
         self.tesseract_path = tesseract_path
+        self.lang = lang
         self.net = cv2.dnn.readNetFromONNX(
             os.path.join(os.path.dirname(__file__), "model/mrz_seg.onnx")
         )
@@ -69,7 +70,7 @@ class FastMRZ:
 
         # Configure pytesseract parameters for better MRZ recognition
         custom_config = r'--oem 3 --psm 6'
-        return pytesseract.image_to_string(roi_threshold, lang="mrz", config=custom_config)
+        return pytesseract.image_to_string(roi_threshold, lang=self.lang, config=custom_config)
 
     def _cleanse_roi(self, mrz_text):
         input_list = mrz_text.replace(" ", "").split("\n")

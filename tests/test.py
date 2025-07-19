@@ -3,7 +3,7 @@ import numpy as np
 import os
 from fastmrz import FastMRZ
 
-fast_mrz = FastMRZ()
+fast_mrz = FastMRZ(lang='mrz+ocrb')  # Use both mrz and eng traineddata
 
 
 class TestFastMRZMethods(unittest.TestCase):

@@ -104,6 +104,7 @@ export TESSDATA_PREFIX=/opt/homebrew/share/
 ## 🚀 Run the API Server
 
 ```bash
+cd fastmrz
 uvicorn mrz_api:app --reload
 ```
 

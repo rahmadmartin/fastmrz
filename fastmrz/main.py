@@ -2,7 +2,8 @@ from fastmrz import FastMRZ
 import json
 import base64
 
-fast_mrz = FastMRZ()
+# fast_mrz = FastMRZ()
+fast_mrz = FastMRZ(lang='mrz+ocrb')  # Use both mrz and eng traineddata
 # Pass file path of installed Tesseract OCR, incase if not added to PATH variable
 # fast_mrz = FastMRZ(tesseract_path=r'/path/to/tesseract/source')
 passport_mrz = fast_mrz.get_details("../data/passport_uk.jpg")
