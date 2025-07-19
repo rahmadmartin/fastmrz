@@ -3,9 +3,6 @@ from pydantic import BaseModel
 from fastmrz import FastMRZ
 from fastapi.responses import JSONResponse
 
-import logging
-logger = logging.getLogger(__name__)
-
 app = FastAPI()
 fast_mrz = FastMRZ(lang='ocrb')  # Use both mrz and eng traineddata
 class ImageBase64Request(BaseModel):
@@ -37,7 +34,7 @@ def extract_mrz_from_base64(req: ImageBase64Request):
         raise HTTPException(status_code=400, detail=f"Invalid image data: {str(e)}")
     except Exception as e:
         # Log the full error for debugging
-        logger.error(f"MRZ extraction failed: {str(e)}", exc_info=True)
+        # logger.error(f"MRZ extraction failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, 
             detail="Failed to process MRZ - the image may not contain a readable MRZ zone"
