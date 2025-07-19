@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from fastmrz import FastMRZ
 from fastapi.responses import JSONResponse
 
+import logging
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 fast_mrz = FastMRZ(lang='ocrb')  # Use both mrz and eng traineddata
 class ImageBase64Request(BaseModel):
