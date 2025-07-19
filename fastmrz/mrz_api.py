@@ -23,7 +23,7 @@ def find_tesseract_data_path():
     """
     possible_paths = [
         # Common Ubuntu/Debian paths
-        "/usr/share/tesseract-ocr/5.00/tessdata/",
+        "/usr/share/tesseract-ocr/5/tessdata/",
         "/usr/share/tesseract-ocr/4.00/tessdata/", 
         "/usr/share/tessdata/",
         "/usr/local/share/tessdata/",
@@ -410,7 +410,7 @@ async def startup_logs():
     
     # Check tessdata paths
     possible_paths = [
-        "/usr/share/tesseract-ocr/5.00/tessdata/",
+        "/usr/share/tesseract-ocr/5/tessdata/",
         "/usr/share/tesseract-ocr/4.00/tessdata/", 
         "/usr/share/tessdata/",
         "/usr/local/share/tessdata/",
