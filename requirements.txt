@@ -1,2 +1,6 @@
 ﻿opencv-python>=4.9.0.80
 pytesseract>=0.3.10
+fastapi>=0.78.0
+uvicorn[standard]>=0.18.0
+python-multipart>=0.0.5
+pillow>=9.0.0
