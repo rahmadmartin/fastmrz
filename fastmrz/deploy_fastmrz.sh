@@ -140,9 +140,9 @@ check_status "FastMRZ package installation"
 
 # Download MRZ trained data
 print_status "Downloading MRZ trained data..."
-sudo mkdir -p /usr/share/tesseract-ocr/4.00/tessdata/
+sudo mkdir -p /usr/share/tesseract-ocr/5/tessdata/
 sudo wget https://github.com/rahmadmartin/fastmrz/raw/refs/heads/main/tessdata/mrz.traineddata \
-    -O /usr/share/tesseract-ocr/4.00/tessdata/mrz.traineddata
+    -O /usr/share/tesseract-ocr/5/tessdata/mrz.traineddata
 check_status "MRZ trained data download"
 
 # Test the installation before proceeding
