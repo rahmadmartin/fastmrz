@@ -83,7 +83,9 @@ sudo apt-get install -y \
     libxrender-dev \
     libgomp1 \
     wget \
-    git
+    git \
+    python3-pil \
+    python3-pil.imagetk
 check_status "Package installation"
 
 # Create project directory and set proper ownership

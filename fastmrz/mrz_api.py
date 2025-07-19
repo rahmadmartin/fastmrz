@@ -23,7 +23,7 @@ def find_tesseract_data_path():
     """
     possible_paths = [
         # Common Ubuntu/Debian paths
-        "/usr/share/tesseract-ocr/5/tessdata/",
+        "/usr/share/tesseract-ocr/5.00/tessdata/",
         "/usr/share/tesseract-ocr/4.00/tessdata/", 
         "/usr/share/tessdata/",
         "/usr/local/share/tessdata/",
@@ -215,13 +215,47 @@ def validate_base64_image(base64_string):
         return False, str(e)
 
 # Initialize tesseract setup
-try:
-    tessdata_path = setup_tesseract()
-    fast_mrz = FastMRZ(lang='mrz')
-    logger.info("✓ FastMRZ initialized successfully")
-except Exception as e:
-    logger.error(f"✗ Error initializing FastMRZ: {e}")
-    fast_mrz = None
+fast_mrz = None
+tessdata_path = None
+
+def initialize_fastmrz():
+    """Initialize FastMRZ with proper error handling"""
+    global fast_mrz, tessdata_path
+    
+    if fast_mrz is not None:
+        return True
+        
+    try:
+        logger.info("Starting FastMRZ initialization...")
+        
+        # Check if tesseract is available
+        try:
+            result = subprocess.run(['tesseract', '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            logger.info(f"Tesseract found: {result.stdout.split()[1] if result.stdout else 'Unknown version'}")
+        except FileNotFoundError:
+            logger.error("Tesseract not found in PATH")
+            return False
+        except Exception as e:
+            logger.error(f"Error checking tesseract: {e}")
+            return False
+        
+        # Setup tesseract
+        tessdata_path = setup_tesseract()
+        logger.info(f"Tessdata path configured: {tessdata_path}")
+        
+        # Initialize FastMRZ
+        fast_mrz = FastMRZ(lang='mrz')
+        logger.info("✓ FastMRZ initialized successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"✗ Error initializing FastMRZ: {e}", exc_info=True)
+        fast_mrz = None
+        return False
+
+# Try to initialize on startup, but don't fail if it doesn't work
+initialization_success = initialize_fastmrz()
 
 class ImageBase64Request(BaseModel):
     base64_image: str
@@ -232,8 +266,11 @@ class MRZTextRequest(BaseModel):
 
 @app.post("/extract")
 def extract_mrz_from_base64(req: ImageBase64Request):
+    # Try to initialize FastMRZ if not already done
     if fast_mrz is None:
-        raise HTTPException(status_code=503, detail="FastMRZ not initialized")
+        logger.info("FastMRZ not initialized, attempting initialization...")
+        if not initialize_fastmrz():
+            raise HTTPException(status_code=503, detail="FastMRZ not initialized and initialization failed")
         
     try:
         logger.info(f"Received extraction request - ignore_parse: {req.ignore_parse}")
@@ -292,19 +329,30 @@ async def root():
 
 @app.get("/health")
 async def health():
-    if fast_mrz is None:
-        raise HTTPException(status_code=503, detail="FastMRZ not initialized")
-    
     tessdata_path = os.environ.get('TESSDATA_PREFIX', '')
-    mrz_file = os.path.join(tessdata_path, 'mrz.traineddata')
+    mrz_file = os.path.join(tessdata_path, 'mrz.traineddata') if tessdata_path else ''
     
-    return {
-        "status": "healthy",
+    health_data = {
+        "status": "healthy" if fast_mrz is not None else "unhealthy",
         "tessdata_path": tessdata_path,
-        "mrz_traineddata_exists": os.path.isfile(mrz_file),
-        "mrz_traineddata_size": os.path.getsize(mrz_file) if os.path.isfile(mrz_file) else 0,
-        "fastmrz_initialized": fast_mrz is not None
+        "mrz_traineddata_exists": os.path.isfile(mrz_file) if mrz_file else False,
+        "mrz_traineddata_size": os.path.getsize(mrz_file) if mrz_file and os.path.isfile(mrz_file) else 0,
+        "fastmrz_initialized": fast_mrz is not None,
+        "initialization_attempted": initialization_success
     }
+    
+    # If FastMRZ is not initialized, try to reinitialize
+    if fast_mrz is None:
+        logger.info("Attempting to reinitialize FastMRZ...")
+        if initialize_fastmrz():
+            health_data["status"] = "healthy"
+            health_data["fastmrz_initialized"] = True
+            health_data["reinitialized"] = True
+        else:
+            # Return health info even if FastMRZ is not working
+            health_data["error"] = "FastMRZ initialization failed"
+    
+    return health_data
 
 @app.get("/tesseract-info")
 async def tesseract_info():
@@ -345,8 +393,57 @@ async def tesseract_info():
     
     return info
 
-@app.post("/debug-extract")
-async def debug_extract(req: ImageBase64Request):
+@app.get("/startup-logs")
+async def startup_logs():
+    """Get detailed startup information for debugging"""
+    logs = []
+    
+    # Check tesseract installation
+    try:
+        result = subprocess.run(['tesseract', '--version'], 
+                              capture_output=True, text=True, timeout=10)
+        logs.append(f"✓ Tesseract found: {result.stdout.split()[1] if result.stdout else 'Unknown'}")
+    except FileNotFoundError:
+        logs.append("✗ Tesseract not found in PATH")
+    except Exception as e:
+        logs.append(f"✗ Error checking tesseract: {e}")
+    
+    # Check tessdata paths
+    possible_paths = [
+        "/usr/share/tesseract-ocr/5.00/tessdata/",
+        "/usr/share/tesseract-ocr/4.00/tessdata/", 
+        "/usr/share/tessdata/",
+        "/usr/local/share/tessdata/",
+        "/usr/share/tesseract-ocr/tessdata/",
+    ]
+    
+    for path in possible_paths:
+        exists = os.path.isdir(path)
+        mrz_exists = os.path.isfile(os.path.join(path, 'mrz.traineddata')) if exists else False
+        logs.append(f"Path {path}: dir_exists={exists}, mrz_exists={mrz_exists}")
+    
+    # Check environment
+    tessdata_prefix = os.environ.get('TESSDATA_PREFIX')
+    logs.append(f"TESSDATA_PREFIX env var: {tessdata_prefix}")
+    
+    # Check available languages
+    try:
+        result = subprocess.run(['tesseract', '--list-langs'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            langs = result.stdout.strip().split('\n')[1:]
+            logs.append(f"Available languages: {langs}")
+            logs.append(f"MRZ available: {'mrz' in langs}")
+        else:
+            logs.append(f"Error listing languages: {result.stderr}")
+    except Exception as e:
+        logs.append(f"Error checking languages: {e}")
+    
+    # FastMRZ status
+    logs.append(f"FastMRZ initialized: {fast_mrz is not None}")
+    logs.append(f"Initialization attempted: {initialization_success}")
+    
+    return {"logs": logs}
     """Debug endpoint that provides detailed extraction information"""
     if fast_mrz is None:
         raise HTTPException(status_code=503, detail="FastMRZ not initialized")
