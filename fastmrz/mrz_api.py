@@ -205,3 +205,29 @@ async def health():
             os.path.join(os.environ.get('TESSDATA_PREFIX', ''), 'mrz.traineddata')
         )
     }
+
+@app.get("/tesseract-info")
+async def tesseract_info():
+    """Debug endpoint to check tesseract configuration"""
+    info = {
+        "tessdata_prefix_env": os.environ.get('TESSDATA_PREFIX'),
+        "detected_tessdata_path": find_tesseract_data_path(),
+        "available_languages": []
+    }
+    
+    try:
+        result = subprocess.run(['tesseract', '--list-langs'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            info["available_languages"] = result.stdout.strip().split('\n')[1:]  # Skip first line
+    except:
+        info["available_languages"] = ["Error getting languages"]
+    
+    # Check if MRZ trained data exists
+    tessdata_path = os.environ.get('TESSDATA_PREFIX')
+    if tessdata_path:
+        mrz_file = os.path.join(tessdata_path, 'mrz.traineddata')
+        info["mrz_traineddata_exists"] = os.path.isfile(mrz_file)
+        info["mrz_traineddata_path"] = mrz_file
+    
+    return info
