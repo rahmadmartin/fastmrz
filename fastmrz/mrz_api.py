@@ -47,3 +47,7 @@ def validate_mrz_text(req: MRZTextRequest):
         return JSONResponse(content={"valid": is_valid})
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
