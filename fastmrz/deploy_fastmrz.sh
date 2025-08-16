@@ -73,7 +73,7 @@ sudo apt-get install -y \
     python3-pip \
     python3-venv \
     tesseract-ocr \
-    tesseract-lang \
+    tesseract-ocr-ind \
     nginx \
     certbot \
     python3-certbot-nginx \
@@ -160,6 +160,21 @@ python -c "from fastmrz import mrz_api; print('API module imported successfully'
     exit 1
 }
 check_status "FastMRZ installation test"
+
+# --- Cleanup section ---
+print_status "Cleaning up old deployment..."
+sudo systemctl stop fastmrz.service 2>/dev/null || true
+sudo systemctl disable fastmrz.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/fastmrz.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+
+sudo rm -f /etc/nginx/sites-enabled/fastmrz
+sudo rm -f /etc/nginx/sites-available/fastmrz
+# ------------------------
+
+# Then continue with fresh Nginx + systemd creation
+
 
 # Create Nginx configuration
 print_status "Configuring Nginx..."
