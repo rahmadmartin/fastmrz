@@ -73,6 +73,7 @@ sudo apt-get install -y \
     python3-pip \
     python3-venv \
     tesseract-ocr \
+    tesseract-lang \
     nginx \
     certbot \
     python3-certbot-nginx \
@@ -85,7 +86,7 @@ sudo apt-get install -y \
     wget \
     git \
     python3-pil \
-    python3-pil.imagetk
+    python3-pil.imagetk \
 check_status "Package installation"
 
 # Create project directory and set proper ownership
