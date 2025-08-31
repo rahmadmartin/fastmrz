@@ -12,7 +12,7 @@
     <img src="https://raw.githubusercontent.com/sivakumar-mahalingam/fastmrz/main/docs/FastMRZ.png" target="_blank" />
 </a>
 
-FastMRZ is an open-source Python package that extracts the Machine Readable Zone (MRZ) from passports and other documents. FastMRZ accepts various input formats such as Image, Base64 string, MRZ string, or NumPy array. 
+FastMRZ is an open-source Python package that extracts the Machine Readable Zone (MRZ) from passports and other documents. FastMRZ accepts various input formats such as Image, Base64 string, MRZ string, or NumPy array.
 
 [Features](#features) •
 [Built With](#built-with) •
@@ -29,10 +29,9 @@ FastMRZ is an open-source Python package that extracts the Machine Readable Zone
 
 - 👁️Detects and extracts the MRZ region from document images
 - ️🔍Contour detection to accurately identify the MRZ area
-- 🎨Custom trained models using ONNX 
+- 🎨Custom trained models using ONNX
 - 🆗Contains checksum logics for data validation
 - 📤Outputs the extracted MRZ region as text/json
-
 
 ## 🛠️Built With
 
@@ -42,7 +41,8 @@ FastMRZ is an open-source Python package that extracts the Machine Readable Zone
 ![ONNX](https://img.shields.io/badge/ONNX-7B7B7B?style=for-the-badge&logo=onnx&logoColor=white)
 
 ## 🚨Prerequisites
-- Install [Tesseract OCR](https://tesseract-ocr.github.io/tessdoc/Installation.html) engine. And set `PATH` variable with the executable and ensure that tesseract can be reached from the command line. 
+
+- Install [Tesseract OCR](https://tesseract-ocr.github.io/tessdoc/Installation.html) engine. And set `PATH` variable with the executable and ensure that tesseract can be reached from the command line.
 
 ## 🔧 Installation
 
@@ -76,8 +76,8 @@ brew install tesseract
 
 #### Windows
 
-* Download installer: [https://github.com/tesseract-ocr/tesseract/wiki](https://github.com/tesseract-ocr/tesseract/wiki)
-* Add the install path to your `PATH` environment variable
+- Download installer: [https://github.com/tesseract-ocr/tesseract/wiki](https://github.com/tesseract-ocr/tesseract/wiki)
+- Add the install path to your `PATH` environment variable
 
 ### 4. (Optional) Install `mrz.traineddata`
 
@@ -89,9 +89,9 @@ wget https://github.com/tesseract-ocr/tessdata_fast/raw/main/mrz.traineddata -O 
 
 Place it in your Tesseract `tessdata` folder. For example:
 
-* Ubuntu/macOS: `/usr/share/tesseract-ocr/4.00/tessdata/`
-* Homebrew: `/opt/homebrew/share/tessdata/`
-* Windows: `C:\Program Files\Tesseract-OCR\tessdata\`
+- Ubuntu/macOS: `/usr/share/tesseract-ocr/4.00/tessdata/`
+- Homebrew: `/opt/homebrew/share/tessdata/`
+- Windows: `C:\Program Files\Tesseract-OCR\tessdata\`
 
 Set the `TESSDATA_PREFIX` environment variable if needed:
 
@@ -206,6 +206,7 @@ print(passport_mrz)
 ```
 
 **OUTPUT:**
+
 ```Console
 JSON:
 {

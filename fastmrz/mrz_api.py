@@ -16,6 +16,8 @@ import pytesseract
 import json
 import re
 from enum import Enum
+from datetime import datetime
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -611,6 +613,12 @@ def extract_document(req: ImageBase64Request):
         
         logger.info(f"Image validation passed: {info}")
         
+        # Save image locally for non-passport documents
+        saved_path = None
+        if req.type != DocumentType.passport:
+            saved_path = save_image_locally(req.base64_image, req.type)
+            logger.info(f"Image saved to: {saved_path}")
+        
         if req.type == DocumentType.passport:
             # Handle MRZ extraction
             if fast_mrz is None:
@@ -639,11 +647,44 @@ def extract_document(req: ImageBase64Request):
             result = ktp_processor.to_dict()
             
             logger.info(f"KTP extraction result: {result}")
-            return JSONResponse(content={
+            response_data = {
                 "success": True,
                 "data": result,
                 "document_type": "ktp"
-            })
+            }
+            
+            # Add saved path to response if image was saved
+            if saved_path:
+                response_data["saved_image_path"] = saved_path
+                
+            return JSONResponse(content=response_data)
+        
+        elif req.type == DocumentType.sim:  # Assuming you have SIM document type
+            # Handle SIM extraction (add your SIM processing logic here)
+            logger.info("Starting SIM extraction...")
+            
+            # Convert base64 to OpenCV image
+            cv2_image = base64_to_cv2_image(req.base64_image)
+            
+            # Add your SIM processing logic here
+            # sim_processor = SIMOCR(cv2_image)
+            # result = sim_processor.to_dict()
+            
+            # Placeholder result for SIM
+            result = {"message": "SIM processing not implemented yet"}
+            
+            logger.info(f"SIM extraction result: {result}")
+            response_data = {
+                "success": True,
+                "data": result,
+                "document_type": "sim"
+            }
+            
+            # Add saved path to response if image was saved
+            if saved_path:
+                response_data["saved_image_path"] = saved_path
+                
+            return JSONResponse(content=response_data)
         
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported document type: {req.type}")
@@ -658,6 +699,84 @@ def extract_document(req: ImageBase64Request):
             detail=f"Failed to process document: {str(e)}"
         )
 
+
+def save_image_locally(base64_image: str, doc_type: DocumentType) -> str:
+    """
+    Save base64 image to local storage
+    
+    Args:
+        base64_image: Base64 encoded image string
+        doc_type: Type of document (ktp, sim, etc.)
+    
+    Returns:
+        str: Path where the image was saved
+    """
+    try:
+        # Create directory in user's home directory (no special permissions needed)
+        home_dir = Path.home()
+        save_dir = home_dir / "document_images"
+        save_dir.mkdir(exist_ok=True)
+        
+        # Create subdirectory for document type
+        doc_dir = save_dir / doc_type.value
+        doc_dir.mkdir(exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # milliseconds
+        filename = f"{doc_type.value}_{timestamp}.jpg"
+        file_path = doc_dir / filename
+        
+        # Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
+        if ',' in base64_image:
+            base64_image = base64_image.split(',')[1]
+        
+        # Decode base64 and save
+        image_data = base64.b64decode(base64_image)
+        
+        with open(file_path, 'wb') as f:
+            f.write(image_data)
+        
+        logger.info(f"Image saved successfully to: {file_path}")
+        return str(file_path)
+        
+    except Exception as e:
+        logger.error(f"Failed to save image: {str(e)}")
+        raise Exception(f"Failed to save image: {str(e)}")
+
+
+def base64_to_cv2_image(base64_image: str):
+    """
+    Convert base64 image to OpenCV image format
+    
+    Args:
+        base64_image: Base64 encoded image string
+    
+    Returns:
+        numpy.ndarray: OpenCV image array
+    """
+    try:
+        # Remove data URL prefix if present
+        if ',' in base64_image:
+            base64_image = base64_image.split(',')[1]
+        
+        # Decode base64
+        image_data = base64.b64decode(base64_image)
+        
+        # Convert to numpy array
+        nparr = np.frombuffer(image_data, np.uint8)
+        
+        # Decode image
+        cv2_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if cv2_image is None:
+            raise ValueError("Failed to decode image")
+            
+        return cv2_image
+        
+    except Exception as e:
+        logger.error(f"Failed to convert base64 to cv2 image: {str(e)}")
+        raise ValueError(f"Failed to convert image: {str(e)}")
+    
 @app.post("/validate")
 def validate_mrz_text(req: MRZTextRequest):
     if fast_mrz is None:
