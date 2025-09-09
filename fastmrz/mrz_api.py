@@ -712,7 +712,7 @@ def save_image_locally(base64_image: str, doc_type: DocumentType) -> str:
     """
     try:
         home_dir = Path.home()
-        save_dir = home_dir / "document_base64"
+        save_dir = home_dir / "document_images"
         save_dir.mkdir(exist_ok=True)
         
         doc_dir = save_dir / doc_type.value
