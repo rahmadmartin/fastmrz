@@ -699,49 +699,86 @@ def extract_document(req: ImageBase64Request):
             detail=f"Failed to process document: {str(e)}"
         )
 
-
 def save_image_locally(base64_image: str, doc_type: DocumentType) -> str:
     """
-    Save base64 image to local storage
+    Save base64 string to local storage (instead of decoding to image)
     
     Args:
         base64_image: Base64 encoded image string
         doc_type: Type of document (ktp, sim, etc.)
     
     Returns:
-        str: Path where the image was saved
+        str: Path where the base64 string was saved
     """
     try:
-        # Create directory in user's home directory (no special permissions needed)
         home_dir = Path.home()
-        save_dir = home_dir / "document_images"
+        save_dir = home_dir / "document_base64"
         save_dir.mkdir(exist_ok=True)
         
-        # Create subdirectory for document type
         doc_dir = save_dir / doc_type.value
         doc_dir.mkdir(exist_ok=True)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # milliseconds
-        filename = f"{doc_type.value}_{timestamp}.jpg"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        filename = f"{doc_type.value}_{timestamp}.txt"
         file_path = doc_dir / filename
         
-        # Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
+        # Strip prefix if present
         if ',' in base64_image:
-            base64_image = base64_image.split(',')[1]
+            base64_image = base64_image.split(',', 1)[1]
         
-        # Decode base64 and save
-        image_data = base64.b64decode(base64_image)
+        with open(file_path, 'w') as f:
+            f.write(base64_image)
         
-        with open(file_path, 'wb') as f:
-            f.write(image_data)
-        
-        logger.info(f"Image saved successfully to: {file_path}")
+        logger.info(f"Base64 string saved successfully to: {file_path}")
         return str(file_path)
         
     except Exception as e:
-        logger.error(f"Failed to save image: {str(e)}")
-        raise Exception(f"Failed to save image: {str(e)}")
+        logger.error(f"Failed to save base64: {str(e)}")
+        raise Exception(f"Failed to save base64: {str(e)}")
+
+
+# def save_image_locally(base64_image: str, doc_type: DocumentType) -> str:
+#     """
+#     Save base64 image to local storage
+    
+#     Args:
+#         base64_image: Base64 encoded image string
+#         doc_type: Type of document (ktp, sim, etc.)
+    
+#     Returns:
+#         str: Path where the image was saved
+#     """
+#     try:
+#         # Create directory in user's home directory (no special permissions needed)
+#         home_dir = Path.home()
+#         save_dir = home_dir / "document_images"
+#         save_dir.mkdir(exist_ok=True)
+        
+#         # Create subdirectory for document type
+#         doc_dir = save_dir / doc_type.value
+#         doc_dir.mkdir(exist_ok=True)
+        
+#         # Generate filename with timestamp
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # milliseconds
+#         filename = f"{doc_type.value}_{timestamp}.jpg"
+#         file_path = doc_dir / filename
+        
+#         # Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
+#         if ',' in base64_image:
+#             base64_image = base64_image.split(',')[1]
+        
+#         # Decode base64 and save
+#         image_data = base64.b64decode(base64_image)
+        
+#         with open(file_path, 'wb') as f:
+#             f.write(image_data)
+        
+#         logger.info(f"Image saved successfully to: {file_path}")
+#         return str(file_path)
+        
+#     except Exception as e:
+#         logger.error(f"Failed to save image: {str(e)}")
+#         raise Exception(f"Failed to save image: {str(e)}")
 
 
 def base64_to_cv2_image(base64_image: str):
