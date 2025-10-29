@@ -1047,43 +1047,63 @@ async def debug_extract(req: ImageBase64Request):
 
 
 @app.post("/upload-log")
-async def upload_log(
-    deviceId: str = Form(...),  # Required
-    file: UploadFile = File(...),  # Required
-    timestamp: str = Form(None),
-    retentionDays: int = Form(14)
-):
+async def upload_log(request: Request):
+    """
+    Accept multipart form data with flexible validation
+    """
     try:
-        # 🧠 DEBUG — log what we received
         logger.info("=== Incoming /upload-log request ===")
-        logger.info(f"deviceId: {deviceId}")
-        logger.info(f"timestamp: {timestamp}")
-        logger.info(f"retentionDays: {retentionDays}")
-        logger.info(f"file: {file.filename if file else 'None'}")
+        
+        # Parse form data manually for better debugging
+        form_data = await request.form()
+        
+        logger.info(f"Form keys: {list(form_data.keys())}")
+        logger.info(f"Content-Type: {request.headers.get('content-type', 'N/A')}")
+        
+        # Extract fields
+        deviceId = form_data.get('deviceId')
+        timestamp = form_data.get('timestamp')
+        retentionDays_str = form_data.get('retentionDays', '14')
+        file = form_data.get('file')
+        
+        # Log what we got
+        logger.info(f"deviceId: {deviceId} (type: {type(deviceId)})")
+        logger.info(f"timestamp: {timestamp} (type: {type(timestamp)})")
+        logger.info(f"retentionDays: {retentionDays_str} (type: {type(retentionDays_str)})")
+        logger.info(f"file: {file.filename if hasattr(file, 'filename') else type(file)}")
+        
         logger.info("===================================")
-
-        # Validation happens automatically with Form(...) and File(...)
-        # But we can add explicit checks if needed
-        if not file or not file.filename:
-            raise HTTPException(status_code=400, detail="File is required")
-
+        
+        # Validate
+        if not deviceId:
+            raise HTTPException(status_code=400, detail="Missing deviceId")
+        if not file:
+            raise HTTPException(status_code=400, detail="Missing file")
+        
+        # Convert retentionDays to int
+        try:
+            retentionDays = int(retentionDays_str) if retentionDays_str else 14
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid retentionDays: {retentionDays_str}, using default 14")
+            retentionDays = 14
+        
         # Ensure device directory
-        device_dir = os.path.join(LOGS_BASE_DIR, deviceId)
+        device_dir = os.path.join(LOGS_BASE_DIR, str(deviceId))
         os.makedirs(device_dir, exist_ok=True)
-
+        
         # Save file
         filename = f"log_{timestamp or datetime.now().isoformat()}.log"
         file_path = os.path.join(device_dir, filename)
-
+        
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
-
+        
         logger.info(f"✅ Received log from {deviceId} -> {file_path}")
-
+        
         # Run cleanup
         deleted_files = cleanup_old_logs(device_dir, retentionDays)
-
+        
         return JSONResponse(content={
             "success": True,
             "message": f"Uploaded log for {deviceId}. Cleaned {len(deleted_files)} old logs.",
@@ -1091,7 +1111,7 @@ async def upload_log(
             "deleted": deleted_files,
             "retentionDays": retentionDays
         })
-
+    
     except HTTPException:
         raise
     except Exception as e:
