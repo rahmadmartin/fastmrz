@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from pydantic import BaseModel
 from fastmrz import FastMRZ
 from fastapi.responses import JSONResponse
@@ -16,7 +16,8 @@ import pytesseract
 import json
 import re
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timedelta
+
 
 
 # Setup logging
@@ -24,6 +25,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+LOGS_BASE_DIR = os.path.join(os.getcwd(), "device_logs")
+os.makedirs(LOGS_BASE_DIR, exist_ok=True)
 
 # Enum for document types
 class DocumentType(str, Enum):
@@ -1040,3 +1044,71 @@ async def debug_extract(req: ImageBase64Request):
         logger.error(f"Debug extraction failed: {e}", exc_info=True)
     
     return debug_info
+
+
+@app.post("/upload-log")
+async def upload_log(
+    deviceId: str = Form(...),  # Required
+    file: UploadFile = File(...),  # Required
+    timestamp: str = Form(None),
+    retentionDays: int = Form(14)
+):
+    try:
+        # 🧠 DEBUG — log what we received
+        logger.info("=== Incoming /upload-log request ===")
+        logger.info(f"deviceId: {deviceId}")
+        logger.info(f"timestamp: {timestamp}")
+        logger.info(f"retentionDays: {retentionDays}")
+        logger.info(f"file: {file.filename if file else 'None'}")
+        logger.info("===================================")
+
+        # Validation happens automatically with Form(...) and File(...)
+        # But we can add explicit checks if needed
+        if not file or not file.filename:
+            raise HTTPException(status_code=400, detail="File is required")
+
+        # Ensure device directory
+        device_dir = os.path.join(LOGS_BASE_DIR, deviceId)
+        os.makedirs(device_dir, exist_ok=True)
+
+        # Save file
+        filename = f"log_{timestamp or datetime.now().isoformat()}.log"
+        file_path = os.path.join(device_dir, filename)
+
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        logger.info(f"✅ Received log from {deviceId} -> {file_path}")
+
+        # Run cleanup
+        deleted_files = cleanup_old_logs(device_dir, retentionDays)
+
+        return JSONResponse(content={
+            "success": True,
+            "message": f"Uploaded log for {deviceId}. Cleaned {len(deleted_files)} old logs.",
+            "saved": file_path,
+            "deleted": deleted_files,
+            "retentionDays": retentionDays
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def cleanup_old_logs(device_dir: str, retention_days: int):
+    """Deletes logs older than `retention_days` in given device folder."""
+    cutoff = datetime.now() - timedelta(days=retention_days)
+    deleted = []
+    for f in os.listdir(device_dir):
+        fp = os.path.join(device_dir, f)
+        if os.path.isfile(fp):
+            mtime = datetime.fromtimestamp(os.path.getmtime(fp))
+            if mtime < cutoff:
+                os.remove(fp)
+                deleted.append(f)
+                logger.info(f"🧹 Deleted {fp} (older than {retention_days} days)")
+    return deleted
