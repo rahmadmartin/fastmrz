@@ -86,8 +86,9 @@ sudo apt-get install -y \
     wget \
     git \
     python3-pil \
-    python3-pil.imagetk
-    
+    python3-pil.imagetk \
+    python-multipart
+
 check_status "Package installation"
 
 # Create project directory and set proper ownership
