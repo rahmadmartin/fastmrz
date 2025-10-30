@@ -402,7 +402,7 @@ class FastMRZ:
         extraction_rate = extracted_relevant_count / len(relevant_fields)
         
         # Only mark as FAILURE if we couldn't extract any relevant fields
-        if extraction_rate == 0:
+        if extraction_rate <= 4:
             mrz_code_dict["status"] = "FAILURE"
             mrz_code_dict["status_message"] = "No relevant data could be extracted from MRZ"
         else:
