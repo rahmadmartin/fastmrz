@@ -1,30 +1,23 @@
 #!/bin/bash
+set -e
 
-# Colors for output
+# =========================================
+# FastMRZ Deployment Script (renewed)
+# =========================================
+
+# --- Color Codes ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}$1${NC}"
-}
+# --- Helper Functions ---
+print_status() { echo -e "${BLUE}$1${NC}"; }
+print_success() { echo -e "${GREEN}$1${NC}"; }
+print_warning() { echo -e "${YELLOW}$1${NC}"; }
+print_error() { echo -e "${RED}$1${NC}"; }
 
-print_success() {
-    echo -e "${GREEN}$1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}$1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}$1${NC}"
-}
-
-# Function to check if command succeeded
 check_status() {
     if [ $? -eq 0 ]; then
         print_success "✓ $1 completed successfully"
@@ -34,16 +27,15 @@ check_status() {
     fi
 }
 
-# Prompt for deployment type
+# --- Deployment Type Prompt ---
 echo -e "${BLUE}Select deployment type:${NC}"
-echo "1) Domain (for production)"
-echo "2) Localhost (for development)"
+echo "1) Domain (production)"
+echo "2) Localhost (development)"
 read -p "Enter choice (1 or 2): " DEPLOY_TYPE
 
 case $DEPLOY_TYPE in
     1)
-        echo -e "${BLUE}Enter your domain name (e.g. mrz.example.com):${NC}"
-        read DOMAIN_NAME
+        read -p "Enter your domain name (e.g. mrz.example.com): " DOMAIN_NAME
         if [ -z "$DOMAIN_NAME" ]; then
             print_error "Domain name cannot be empty"
             exit 1
@@ -62,131 +54,98 @@ esac
 
 print_success "Starting FastMRZ deployment for: $DOMAIN_NAME"
 
-# Update system
+# --- System Update ---
 print_status "Updating system packages..."
-sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get update -y && sudo apt-get upgrade -y
 check_status "System update"
 
-# Install required packages
+# --- Install Required OS Packages ---
 print_status "Installing required packages..."
 sudo apt-get install -y \
-    python3-pip \
-    python3-venv \
-    tesseract-ocr \
-    tesseract-ocr-ind \
-    nginx \
-    certbot \
-    python3-certbot-nginx \
-    libgl1-mesa-dev \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    wget \
-    git \
-    python3-pil \
-    python3-pil.imagetk \
-    python-multipart
+    python3-pip python3-venv \
+    tesseract-ocr tesseract-ocr-ind \
+    nginx certbot python3-certbot-nginx \
+    libgl1-mesa-dev libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 \
+    wget git python3-pil python3-pil.imagetk
+check_status "System package installation"
 
-check_status "Package installation"
-
-# Create project directory and set proper ownership
+# --- Project Directory Setup ---
 print_status "Setting up project directory..."
 sudo mkdir -p /opt/projects
 sudo chown -R $USER:$USER /opt/projects
 cd /opt/projects
 check_status "Project directory setup"
 
-# Clone the repository
-print_status "Cloning FastMRZ repository..."
+# --- Repository ---
+print_status "Fetching FastMRZ repository..."
 if [ -d ".git" ]; then
-    print_warning "Repository already exists, pulling latest changes..."
+    print_warning "Repository already exists — pulling latest changes..."
     git pull origin main
 else
     git clone https://github.com/rahmadmartin/fastmrz.git .
 fi
 check_status "Repository clone/update"
 
-# Remove existing virtual environment if it exists
+# --- Python Virtual Environment ---
+print_status "Creating Python virtual environment..."
 if [ -d "venv" ]; then
-    print_warning "Removing existing virtual environment..."
+    print_warning "Removing old virtual environment..."
     rm -rf venv
 fi
-
-# Set up Python virtual environment
-print_status "Creating Python virtual environment..."
 python3 -m venv venv
 source venv/bin/activate
-check_status "Virtual environment creation"
+check_status "Virtual environment setup"
 
-# Install Python requirements
-print_status "Installing Python packages..."
-pip install --upgrade pip
+# --- Python Packages ---
+print_status "Upgrading pip..."
+pip install --upgrade pip setuptools wheel
 check_status "Pip upgrade"
 
-# Install requirements with proper opencv version for headless servers
-print_status "Installing OpenCV (headless version for servers)..."
-pip install opencv-python-headless>=4.9.0.80
-check_status "OpenCV installation"
+print_status "Installing core Python dependencies..."
+pip install opencv-python-headless>=4.9.0.80 pytesseract>=0.3.10 numpy>=2.0
+check_status "Core Python dependencies"
 
-print_status "Installing other requirements..."
-pip install pytesseract>=0.3.10
-pip install numpy>=2.0
-check_status "Basic requirements installation"
-
-print_status "Installing FastAPI and Uvicorn..."
-pip install fastapi uvicorn[standard]
-check_status "FastAPI and Uvicorn installation"
+print_status "Installing FastAPI stack..."
+pip install fastapi uvicorn[standard] python-multipart
+check_status "FastAPI + Uvicorn installation"
 
 print_status "Installing FastMRZ package..."
 pip install -e .
 check_status "FastMRZ package installation"
 
-# Download MRZ trained data
-print_status "Downloading MRZ trained data..."
+# --- Tesseract MRZ data ---
+print_status "Installing MRZ trained data..."
 sudo mkdir -p /usr/share/tesseract-ocr/5/tessdata/
-sudo wget https://github.com/rahmadmartin/fastmrz/raw/refs/heads/main/tessdata/mrz.traineddata \
+sudo wget -q https://github.com/rahmadmartin/fastmrz/raw/main/tessdata/mrz.traineddata \
     -O /usr/share/tesseract-ocr/5/tessdata/mrz.traineddata
 check_status "MRZ trained data download"
 
-# Test the installation before proceeding
+# --- Test Import ---
 print_status "Testing FastMRZ installation..."
-python -c "import fastmrz; print('FastMRZ imported successfully')" || {
+python -c "import fastmrz; from fastmrz import mrz_api; print('FastMRZ OK')" || {
     print_error "FastMRZ import test failed"
     exit 1
 }
+check_status "FastMRZ import test"
 
-python -c "from fastmrz import mrz_api; print('API module imported successfully')" || {
-    print_error "API module import test failed"
-    exit 1
-}
-check_status "FastMRZ installation test"
-
-# --- Cleanup section ---
+# --- Clean Old Service & Nginx ---
 print_status "Cleaning up old deployment..."
 sudo systemctl stop fastmrz.service 2>/dev/null || true
 sudo systemctl disable fastmrz.service 2>/dev/null || true
 sudo rm -f /etc/systemd/system/fastmrz.service
 sudo systemctl daemon-reload
 sudo systemctl reset-failed
+sudo rm -f /etc/nginx/sites-{available,enabled}/fastmrz
+check_status "Old service cleanup"
 
-sudo rm -f /etc/nginx/sites-enabled/fastmrz
-sudo rm -f /etc/nginx/sites-available/fastmrz
-# ------------------------
-
-# Then continue with fresh Nginx + systemd creation
-
-
-# Create Nginx configuration
-print_status "Configuring Nginx..."
+# --- Configure Nginx ---
+print_status "Creating Nginx config..."
 if [ "$HOST_TYPE" = "domain" ]; then
-    sudo tee /etc/nginx/sites-available/fastmrz << EOF
+    sudo tee /etc/nginx/sites-available/fastmrz >/dev/null <<EOF
 server {
     server_name ${DOMAIN_NAME};
-    
     location / {
-        proxy_pass http://localhost:8000;
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -197,19 +156,19 @@ EOF
     sudo ln -sf /etc/nginx/sites-available/fastmrz /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default
     sudo nginx -t && sudo systemctl reload nginx
-    check_status "Nginx configuration"
-    
-    print_status "Setting up SSL certificate..."
-    sudo certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos --email admin@$DOMAIN_NAME
-    check_status "SSL certificate setup"
+    check_status "Nginx setup"
+
+    print_status "Setting up SSL..."
+    sudo certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos --email admin@$DOMAIN_NAME || \
+        print_warning "SSL certificate setup skipped (check DNS)"
+    check_status "SSL setup"
 else
-    sudo tee /etc/nginx/sites-available/fastmrz << EOF
+    sudo tee /etc/nginx/sites-available/fastmrz >/dev/null <<EOF
 server {
     listen 80;
     server_name localhost;
-    
     location / {
-        proxy_pass http://localhost:8000;
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
@@ -218,12 +177,12 @@ EOF
     sudo ln -sf /etc/nginx/sites-available/fastmrz /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default
     sudo nginx -t && sudo systemctl reload nginx
-    check_status "Nginx configuration"
+    check_status "Nginx setup"
 fi
 
-# Create systemd service with correct paths
+# --- Systemd Service ---
 print_status "Creating systemd service..."
-sudo tee /etc/systemd/system/fastmrz.service << EOF
+sudo tee /etc/systemd/system/fastmrz.service >/dev/null <<EOF
 [Unit]
 Description=FastMRZ API Service
 After=network.target
@@ -232,9 +191,8 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=/opt/projects
-Environment="PATH=/opt/projects/venv/bin"
+Environment="PATH=/opt/projects/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PYTHONPATH=/opt/projects"
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata/"
 ExecStart=/opt/projects/venv/bin/uvicorn fastmrz.mrz_api:app --host 0.0.0.0 --port 8000
 Restart=always
@@ -245,55 +203,38 @@ WantedBy=multi-user.target
 EOF
 check_status "Systemd service creation"
 
-# Start and enable service
+# --- Start Service ---
 print_status "Starting FastMRZ service..."
 sudo systemctl daemon-reload
 sudo systemctl enable fastmrz
-sudo systemctl start fastmrz
-check_status "Service start"
-
-# Wait a moment for service to start
+sudo systemctl restart fastmrz
 sleep 3
-
-# Check service status
-print_status "Checking service status..."
-if sudo systemctl is-active --quiet fastmrz; then
-    print_success "✓ FastMRZ service is running"
-else
-    print_error "✗ FastMRZ service failed to start"
-    print_warning "Checking service logs:"
-    sudo journalctl -u fastmrz -n 10 --no-pager
+sudo systemctl is-active --quiet fastmrz && print_success "✓ Service running" || {
+    print_error "✗ Service failed to start"
+    sudo journalctl -u fastmrz -n 20 --no-pager
     exit 1
-fi
+}
 
-# Test the API
+# --- API Test ---
 print_status "Testing API..."
-sleep 2
-if curl -s http://localhost:8000/health > /dev/null; then
+if curl -s http://127.0.0.1:8000/health > /dev/null; then
     print_success "✓ API health check passed"
 else
-    print_warning "⚠ API health check failed, but service might still be starting"
+    print_warning "⚠ API health check failed — service may still be initializing"
 fi
 
-# Final steps
+# --- Done ---
 print_success "=== Deployment completed successfully! ==="
 if [ "$HOST_TYPE" = "domain" ]; then
-    print_success "Your FastMRZ API is now available at: https://$DOMAIN_NAME"
-    print_success "API Documentation: https://$DOMAIN_NAME/docs"
-    print_success "Health Check: https://$DOMAIN_NAME/health"
+    echo -e "${GREEN}Your API: https://${DOMAIN_NAME}${NC}"
+    echo -e "${GREEN}Docs:    https://${DOMAIN_NAME}/docs${NC}"
 else
-    print_success "Your FastMRZ API is now available at: http://localhost"
-    print_success "API Documentation: http://localhost/docs"  
-    print_success "Health Check: http://localhost/health"
-    print_success "Direct API: http://localhost:8000"
+    echo -e "${GREEN}Your API: http://localhost:8000${NC}"
+    echo -e "${GREEN}Docs:    http://localhost:8000/docs${NC}"
 fi
 
-echo ""
-print_status "=== Management Commands ==="
-echo -e "${BLUE}To check status:${NC} sudo systemctl status fastmrz"
-echo -e "${BLUE}To view logs:${NC} sudo journalctl -u fastmrz -f"
-echo -e "${BLUE}To restart service:${NC} sudo systemctl restart fastmrz"
-echo -e "${BLUE}To stop service:${NC} sudo systemctl stop fastmrz"
-echo -e "${BLUE}To test the API:${NC} curl http://localhost:8000/health"
-
-print_success "FastMRZ deployment completed successfully!"
+print_status "Useful commands:"
+echo -e "${BLUE}sudo systemctl status fastmrz${NC}"
+echo -e "${BLUE}sudo journalctl -u fastmrz -f${NC}"
+echo -e "${BLUE}sudo systemctl restart fastmrz${NC}"
+echo -e "${BLUE}sudo systemctl stop fastmrz${NC}"
